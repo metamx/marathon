@@ -29,7 +29,7 @@ sealed trait HealthCheck extends MarathonState[Protos.HealthCheckDefinition, Hea
       .setMaxConsecutiveFailures(this.maxConsecutiveFailures)
 }
 
-trait HealthCheckWithPort { this: HealthCheck =>
+sealed trait HealthCheckWithPort { this: HealthCheck =>
   def portIndex: Option[Int]
   def port: Option[Int]
 
