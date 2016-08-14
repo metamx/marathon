@@ -54,9 +54,8 @@ object ReadinessCheckExecutor {
             case ReadinessCheck.Protocol.HTTPS => "https"
           }
 
-          val portAssignmentsByName = runSpec.portAssignments(task).getOrElse(
-            throw new IllegalStateException(s"no ports assignments for RunSpec: [$runSpec] - Task: [$task]")
-          ).map(portAssignment => portAssignment.portName -> portAssignment).toMap
+          val portAssignmentsByName = runSpec.portAssignments(task)
+            .map(portAssignment => portAssignment.portName -> portAssignment).toMap
 
           val effectivePortAssignment = portAssignmentsByName.getOrElse(
             Some(checkDef.portName),
