@@ -657,7 +657,9 @@ object AppDefinition extends GeneralPurposeCombinators {
 
   private val complyWithGpuRules: Validator[AppDefinition] = conditional[AppDefinition](_.gpus > 0) {
     isTrue[AppDefinition]("GPU resources only work with the Mesos containerizer") { app =>
-      app.container.exists{
+      // If 'container' is not defined, the Mesos containerizer is used.
+      // By using forall, this case will yield true.
+      app.container.forall{
         _ match {
           case _: MesosDocker => true
           case _: MesosAppC => true
