@@ -50,7 +50,7 @@ class OfferMatcherReconcilerTest extends FunSuite with GivenWhenThen with Mockit
     val expectedOps =
       Seq(
         InstanceOp.UnreserveAndDestroyVolumes(
-          InstanceUpdateOperation.ForceExpunge(taskId.instanceId),
+          InstanceUpdateOperation.ForceExpunge(taskId.instanceId, true),
           oldInstance = None,
           resources = offer.getResourcesList.to[Seq]
         )
@@ -79,7 +79,7 @@ class OfferMatcherReconcilerTest extends FunSuite with GivenWhenThen with Mockit
     Then("all resources are destroyed and unreserved")
     val expectedOps = Seq(
       InstanceOp.UnreserveAndDestroyVolumes(
-        InstanceUpdateOperation.ForceExpunge(taskId.instanceId),
+        InstanceUpdateOperation.ForceExpunge(taskId.instanceId, true),
         oldInstance = None,
         resources = offer.getResourcesList.to[Seq]
       )
@@ -108,7 +108,7 @@ class OfferMatcherReconcilerTest extends FunSuite with GivenWhenThen with Mockit
     Then("all resources are destroyed and unreserved")
     val expectedOps = Seq(
       InstanceOp.UnreserveAndDestroyVolumes(
-        InstanceUpdateOperation.ForceExpunge(taskId.instanceId),
+        InstanceUpdateOperation.ForceExpunge(taskId.instanceId, true),
         oldInstance = Some(bogusInstance),
         resources = offer.getResourcesList.to[Seq]
       )

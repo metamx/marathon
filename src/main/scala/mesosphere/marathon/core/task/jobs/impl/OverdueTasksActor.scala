@@ -64,6 +64,9 @@ private[jobs] object OverdueTasksActor {
       val unconfirmedExpire = now - config.taskLaunchConfirmTimeout().millis
 
       def launchedAndExpired(task: Task): Boolean = {
+        val unconfirmed = task.status.stagedAt < unconfirmedExpire
+        val stageExpired = task.status.stagedAt < stagedExpire
+        log.debug(s"${task.taskId} condition ${task.status.condition}, unconfirmed $unconfirmed, stageExpired $stageExpired")
         task.status.condition match {
           case Condition.Created | Condition.Starting if task.status.stagedAt < unconfirmedExpire =>
             log.warn(s"Should kill: ${task.taskId} was launched " +

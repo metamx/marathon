@@ -84,7 +84,7 @@ class InstanceOpFactoryImpl(
   }
 
   private[this] def inferNormalTaskOp(app: AppDefinition, request: InstanceOpFactory.Request): OfferMatchResult = {
-    val InstanceOpFactory.Request(runSpec, offer, instances, _) = request
+    val InstanceOpFactory.Request(runSpec, offer, instances, _, _) = request
 
     val matchResponse =
       RunSpecOfferMatcher.matchOffer(app, offer, instances.values.toIndexedSeq, config.defaultAcceptedResourceRolesSet)
@@ -111,12 +111,15 @@ class InstanceOpFactoryImpl(
   }
 
   private[this] def inferForResidents(app: AppDefinition, request: InstanceOpFactory.Request): OfferMatchResult = {
-    val InstanceOpFactory.Request(runSpec, offer, instances, additionalLaunches) = request
+    val InstanceOpFactory.Request(runSpec, offer, instances, additionalLaunches, _) = request
 
     // TODO(jdef) pods should be supported some day
 
     val needToLaunch = additionalLaunches > 0 && request.hasWaitingReservations
     val needToReserve = request.numberOfWaitingReservations < additionalLaunches
+    val instances0 = request.instanceMap.mapValues(i => i.instanceId + " " + i.state.condition).mkString(", ")
+
+    log.debug(s"Need to launch $needToLaunch, need to reserve $needToReserve, additionalLaunches $additionalLaunches, instances [$instances0]")
 
     /* *
      * If an offer HAS reservations/volumes that match our run spec, handling these has precedence
@@ -135,6 +138,7 @@ class InstanceOpFactoryImpl(
 
     def maybeLaunchOnReservation: Option[OfferMatchResult] = if (needToLaunch) {
       val maybeVolumeMatch = PersistentVolumeMatcher.matchVolumes(offer, request.reserved)
+      log.debug(s"Matched volumes: ${maybeVolumeMatch.nonEmpty}")
 
       maybeVolumeMatch.map { volumeMatch =>
 

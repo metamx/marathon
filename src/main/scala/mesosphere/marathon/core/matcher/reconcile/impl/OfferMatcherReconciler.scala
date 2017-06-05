@@ -74,7 +74,7 @@ private[reconcile] class OfferMatcherReconciler(instanceTracker: InstanceTracker
             case (taskId, spuriousResources) if spurious(taskId.instanceId) =>
               val unreserveAndDestroy =
                 InstanceOp.UnreserveAndDestroyVolumes(
-                  stateOp = InstanceUpdateOperation.ForceExpunge(taskId.instanceId),
+                  stateOp = InstanceUpdateOperation.ForceExpunge(taskId.instanceId, true),
                   oldInstance = instancesBySpec.instance(taskId.instanceId),
                   resources = spuriousResources
                 )

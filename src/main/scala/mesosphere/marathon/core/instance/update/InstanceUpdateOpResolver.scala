@@ -46,7 +46,10 @@ private[marathon] class InstanceUpdateOpResolver(
         createInstance(op.instanceId)(updater.reserve(op, clock.now()))
 
       case op: ForceExpunge =>
-        updateExistingInstance(op.instanceId)(updater.forceExpunge(_, clock.now()))
+        if (!op.unreserveAndDestroy)
+          updateExistingInstance(op.instanceId)(updater.forceExpunge(_, clock.now()))
+        else
+          updateExistingInstanceSafe(op.instanceId)(updater.forceExpunge(_, clock.now()))
 
       case op: Revert =>
         Future.successful(updater.revert(op.instance))
@@ -68,6 +71,16 @@ private[marathon] class InstanceUpdateOpResolver(
       case None =>
         InstanceUpdateEffect.Failure(
           new IllegalStateException(s"$id of app [${id.runSpecId}] does not exist"))
+    }
+  }
+
+  private[this] def updateExistingInstanceSafe(id: Instance.Id)(applyOperation: Instance => InstanceUpdateEffect)(implicit ec: ExecutionContext): Future[InstanceUpdateEffect] = {
+    directInstanceTracker.instance(id).map {
+      case Some(existingInstance) =>
+        applyOperation(existingInstance)
+
+      case None =>
+        InstanceUpdateEffect.Noop(id)
     }
   }
 

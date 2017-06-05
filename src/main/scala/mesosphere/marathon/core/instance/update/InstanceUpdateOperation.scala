@@ -2,10 +2,10 @@ package mesosphere.marathon.core.instance.update
 
 import mesosphere.marathon.core.condition.Condition
 import mesosphere.marathon.core.instance.Instance
-import mesosphere.marathon.core.task.{ TaskCondition, Task }
+import mesosphere.marathon.core.instance.Instance.Id
+import mesosphere.marathon.core.task.{ Task, TaskCondition }
 import mesosphere.marathon.state.Timestamp
 import org.apache.mesos
-
 import scala.collection.immutable.Seq
 
 sealed trait InstanceUpdateOperation {
@@ -67,5 +67,6 @@ object InstanceUpdateOperation {
   case class ReservationTimeout(instanceId: Instance.Id) extends InstanceUpdateOperation
 
   /** Expunge a task whose TaskOp was rejected */
-  case class ForceExpunge(instanceId: Instance.Id) extends InstanceUpdateOperation
+  case class ForceExpunge(instanceId: Id, unreserveAndDestroy: Boolean = false)
+    extends InstanceUpdateOperation
 }

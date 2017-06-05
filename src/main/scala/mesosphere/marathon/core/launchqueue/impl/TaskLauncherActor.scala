@@ -92,6 +92,8 @@ private class TaskLauncherActor(
   private[this] var recheckBackOff: Option[Cancellable] = None
   private[this] var backOffUntil: Option[Timestamp] = None
 
+  private[this] var reserveInFlightCount = 0
+  private[this] var reserveInFlight = Set[Instance.Id]()
   /** instances that are in flight and those in the tracker */
   private[this] var instanceMap: Map[Instance.Id, Instance] = _
 
@@ -359,6 +361,10 @@ private class TaskLauncherActor(
       sender ! MatchedInstanceOps(offer.getId)
 
     case ActorOfferMatcher.MatchOffer(deadline, offer) =>
+      val active = instanceMap.values.filter(i => i.isActive).map(i => i.instanceId).mkString(",")
+      val reserved = instanceMap.values.filter(i => i.isReserved).map(i => i.instanceId).mkString(",")
+      val lost = instanceMap.values.filter(i => i.state.condition.isLost).map(i => i.instanceId).mkString(",")
+      log.debug(s"active ins [$active] reserved [$reserved] lost[$lost] reserveInFlight ${reserveInFlight.size}")
       val reachableInstances = instanceMap.filterNotAs{ case (_, instance) => instance.state.condition.isLost }
       val matchRequest = InstanceOpFactory.Request(runSpec, offer, reachableInstances, instancesToLaunch)
       instanceOpFactory.matchOfferRequest(matchRequest) match {
@@ -376,8 +382,11 @@ private class TaskLauncherActor(
       val instanceId = instanceOp.instanceId
       instanceOp match {
         // only decrement for launched instances, not for reservations:
-        case _: InstanceOp.LaunchTask => instancesToLaunch -= 1
+        case op: InstanceOp.LaunchTask =>
+          instancesToLaunch -= 1
+          reserveInFlight -= op.instanceId
         case _: InstanceOp.LaunchTaskGroup => instancesToLaunch -= 1
+        case op: InstanceOp.ReserveAndCreateVolumes => reserveInFlight += op.instanceId
         case _ => ()
       }
 
