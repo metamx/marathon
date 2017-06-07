@@ -3,15 +3,16 @@ package core.task.jobs.impl
 
 import akka.actor._
 import mesosphere.marathon.core.base.Clock
-import mesosphere.marathon.core.task.termination.{ KillReason, KillService }
-import mesosphere.marathon.core.task.Task
-import mesosphere.marathon.core.task.tracker.{ InstanceTracker, TaskReservationTimeoutHandler }
-import mesosphere.marathon.state.Timestamp
 import mesosphere.marathon.core.condition.Condition
 import mesosphere.marathon.core.instance.Instance
 import mesosphere.marathon.core.instance.update.InstanceUpdateOperation
+import mesosphere.marathon.core.task.Task
+import mesosphere.marathon.core.task.termination.KillReason
+import mesosphere.marathon.core.task.termination.KillService
+import mesosphere.marathon.core.task.tracker.InstanceTracker
+import mesosphere.marathon.core.task.tracker.TaskReservationTimeoutHandler
+import mesosphere.marathon.state.Timestamp
 import org.slf4j.LoggerFactory
-
 import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.util.control.NonFatal
@@ -64,9 +65,12 @@ private[jobs] object OverdueTasksActor {
       val unconfirmedExpire = now - config.taskLaunchConfirmTimeout().millis
 
       def launchedAndExpired(task: Task): Boolean = {
-        val unconfirmed = task.status.stagedAt < unconfirmedExpire
-        val stageExpired = task.status.stagedAt < stagedExpire
-        log.debug(s"${task.taskId} condition ${task.status.condition}, unconfirmed $unconfirmed, stageExpired $stageExpired")
+        if (log.isDebugEnabled) {
+          val unconfirmed = task.status.stagedAt < unconfirmedExpire
+          val stageExpired = task.status.stagedAt < stagedExpire
+          log.debug(s"${task.taskId} condition ${task.status .condition}, unconfirmed $unconfirmed, "
+              + s"stageExpired $stageExpired")
+        }
         task.status.condition match {
           case Condition.Created | Condition.Starting if task.status.stagedAt < unconfirmedExpire =>
             log.warn(s"Should kill: ${task.taskId} was launched " +

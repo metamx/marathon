@@ -7,21 +7,22 @@ import akka.event.LoggingReceive
 import mesosphere.marathon.core.base.Clock
 import mesosphere.marathon.core.flow.OfferReviver
 import mesosphere.marathon.core.instance.Instance
-import mesosphere.marathon.core.instance.update.{ InstanceChange, InstanceDeleted, InstanceUpdated }
-import mesosphere.marathon.core.launcher.{ InstanceOp, InstanceOpFactory, OfferMatchResult }
+import mesosphere.marathon.core.instance.update.{InstanceChange, InstanceDeleted, InstanceUpdated}
+import mesosphere.marathon.core.launcher.OfferMatchResult.Match
+import mesosphere.marathon.core.launcher.OfferMatchResult.NoMatch
+import mesosphere.marathon.core.launcher.{InstanceOp, InstanceOpFactory, OfferMatchResult}
 import mesosphere.marathon.core.launchqueue.LaunchQueue.QueuedInstanceInfo
 import mesosphere.marathon.core.launchqueue.LaunchQueueConfig
 import mesosphere.marathon.core.launchqueue.impl.TaskLauncherActor.RecheckIfBackOffUntilReached
 import mesosphere.marathon.core.matcher.base.OfferMatcher
-import mesosphere.marathon.core.matcher.base.OfferMatcher.{ InstanceOpWithSource, MatchedInstanceOps }
+import mesosphere.marathon.core.matcher.base.OfferMatcher.{InstanceOpWithSource, MatchedInstanceOps}
 import mesosphere.marathon.core.matcher.base.util.InstanceOpSourceDelegate.InstanceOpNotification
-import mesosphere.marathon.core.matcher.base.util.{ ActorOfferMatcher, InstanceOpSourceDelegate }
+import mesosphere.marathon.core.matcher.base.util.{ActorOfferMatcher, InstanceOpSourceDelegate}
 import mesosphere.marathon.core.matcher.manager.OfferMatcherManager
 import mesosphere.marathon.core.task.tracker.InstanceTracker
-import mesosphere.marathon.state.{ RunSpec, Timestamp }
-import org.apache.mesos.{ Protos => Mesos }
+import mesosphere.marathon.state.{RunSpec, Timestamp}
+import org.apache.mesos.{Protos => Mesos}
 import mesosphere.marathon.stream._
-
 import scala.concurrent.duration._
 
 private[launchqueue] object TaskLauncherActor {
@@ -92,7 +93,6 @@ private class TaskLauncherActor(
   private[this] var recheckBackOff: Option[Cancellable] = None
   private[this] var backOffUntil: Option[Timestamp] = None
 
-  private[this] var reserveInFlightCount = 0
   private[this] var reserveInFlight = Set[Instance.Id]()
   /** instances that are in flight and those in the tracker */
   private[this] var instanceMap: Map[Instance.Id, Instance] = _
@@ -361,20 +361,26 @@ private class TaskLauncherActor(
       sender ! MatchedInstanceOps(offer.getId)
 
     case ActorOfferMatcher.MatchOffer(deadline, offer) =>
+      logInstanceMapSummary
+      val reachableInstances = instanceMap.filterNotAs{ case (_, instance) => instance.state.condition.isLost }
+      val matchRequest = InstanceOpFactory.Request(runSpec, offer, reachableInstances, instancesToLaunch, reserveInFlight)
+      instanceOpFactory.matchOfferRequest(matchRequest) match {
+        case matched: Match =>
+          offerMatchStatisticsActor ! matched
+          handleInstanceOp(matched.instanceOp, offer)
+        case notMatched: NoMatch =>
+          offerMatchStatisticsActor ! notMatched
+          sender() ! MatchedInstanceOps(offer.getId)
+      }
+  }
+
+  private def logInstanceMapSummary = {
+    if (log.isDebugEnabled) {
       val active = instanceMap.values.filter(i => i.isActive).map(i => i.instanceId).mkString(",")
       val reserved = instanceMap.values.filter(i => i.isReserved).map(i => i.instanceId).mkString(",")
       val lost = instanceMap.values.filter(i => i.state.condition.isLost).map(i => i.instanceId).mkString(",")
       log.debug(s"active ins [$active] reserved [$reserved] lost[$lost] reserveInFlight ${reserveInFlight.size}")
-      val reachableInstances = instanceMap.filterNotAs{ case (_, instance) => instance.state.condition.isLost }
-      val matchRequest = InstanceOpFactory.Request(runSpec, offer, reachableInstances, instancesToLaunch)
-      instanceOpFactory.matchOfferRequest(matchRequest) match {
-        case matched: OfferMatchResult.Match =>
-          offerMatchStatisticsActor ! matched
-          handleInstanceOp(matched.instanceOp, offer)
-        case notMatched: OfferMatchResult.NoMatch =>
-          offerMatchStatisticsActor ! notMatched
-          sender() ! MatchedInstanceOps(offer.getId)
-      }
+    }
   }
 
   private[this] def handleInstanceOp(instanceOp: InstanceOp, offer: Mesos.Offer): Unit = {

@@ -117,9 +117,11 @@ class InstanceOpFactoryImpl(
 
     val needToLaunch = additionalLaunches > 0 && request.hasWaitingReservations
     val needToReserve = request.numberOfWaitingReservations < additionalLaunches
-    val instances0 = request.instanceMap.mapValues(i => i.instanceId + " " + i.state.condition).mkString(", ")
-
-    log.debug(s"Need to launch $needToLaunch, need to reserve $needToReserve, additionalLaunches $additionalLaunches, instances [$instances0]")
+    if (log.isDebugEnabled) {
+      val instancesSummary = request.instanceMap.mapValues(i => i.instanceId + " " + i.state.condition).mkString(", ")
+      log.debug(s"Need to launch $needToLaunch, need to reserve $needToReserve, " +
+          s"additionalLaunches $additionalLaunches, instances [$instancesSummary]")
+    }
 
     /* *
      * If an offer HAS reservations/volumes that match our run spec, handling these has precedence
@@ -138,7 +140,7 @@ class InstanceOpFactoryImpl(
 
     def maybeLaunchOnReservation: Option[OfferMatchResult] = if (needToLaunch) {
       val maybeVolumeMatch = PersistentVolumeMatcher.matchVolumes(offer, request.reserved)
-      log.debug(s"Matched volumes: ${maybeVolumeMatch.nonEmpty}")
+      log.debug("Has matched volumes: %s", maybeVolumeMatch.nonEmpty)
 
       maybeVolumeMatch.map { volumeMatch =>
 
